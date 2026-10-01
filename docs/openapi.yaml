@@ -1,0 +1,217 @@
+openapi: 3.1.0
+info:
+  title: ProjectTrix API
+  version: 0.1.0
+  description: API contract for the ProjectTrix MVP.
+servers:
+  - url: http://localhost:4000/api/v1
+paths:
+  /health:
+    get:
+      summary: Check API health
+      responses:
+        "200": { description: API process is running }
+  /ready:
+    get:
+      summary: Check API and database readiness
+      responses:
+        "200": { description: API and PostgreSQL are ready }
+  /auth/gitlab:
+    get:
+      summary: Begin GitLab sign in
+      parameters:
+        - in: query
+          name: returnTo
+          schema: { type: string, example: /projects }
+      responses:
+        "302": { description: Redirect to GitLab }
+        "503": { $ref: "#/components/responses/Error" }
+  /auth/gitlab/callback:
+    get:
+      summary: Complete GitLab sign in
+      parameters:
+        - in: query
+          name: code
+          required: true
+          schema: { type: string }
+        - in: query
+          name: state
+          required: true
+          schema: { type: string }
+      responses:
+        "302": { description: Session created and redirected to frontend }
+        "400": { $ref: "#/components/responses/Error" }
+  /auth/me:
+    get:
+      summary: Return the signed in user
+      security: [{ cookieAuth: [] }]
+      responses:
+        "200": { description: Current user }
+        "401": { $ref: "#/components/responses/Error" }
+  /auth/logout:
+    post:
+      summary: Clear the application session
+      responses:
+        "200": { description: Signed out }
+  /metadata/technologies:
+    get:
+      summary: Return allowed technology names
+      responses:
+        "200": { description: Technology list }
+  /projects:
+    get:
+      summary: List projects
+      parameters:
+        - in: query
+          name: search
+          schema: { type: string }
+        - in: query
+          name: technology
+          schema: { type: string }
+        - in: query
+          name: difficulty
+          schema: { $ref: "#/components/schemas/Difficulty" }
+        - in: query
+          name: status
+          schema: { $ref: "#/components/schemas/ProjectStatus" }
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, default: 1 }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 50, default: 12 }
+      responses:
+        "200": { description: Paginated project summaries }
+        "422": { $ref: "#/components/responses/Error" }
+    post:
+      summary: Create a project
+      security: [{ cookieAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateProject" }
+      responses:
+        "201": { description: Project created }
+        "401": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /projects/{id}:
+    get:
+      summary: Return project details
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200": { description: Project details and open roles }
+        "404": { $ref: "#/components/responses/Error" }
+  /projects/{id}/join-requests:
+    post:
+      summary: Request to join an open role
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [roleId, message]
+              properties:
+                roleId: { type: string, format: uuid }
+                message: { type: string, minLength: 20, maxLength: 1000 }
+      responses:
+        "201": { description: Join request created }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /users/me:
+    get:
+      summary: Return the full current-user profile
+      security: [{ cookieAuth: [] }]
+      responses:
+        "200": { description: Profile and owned projects }
+        "401": { $ref: "#/components/responses/Error" }
+    patch:
+      summary: Update bio or skills
+      security: [{ cookieAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                bio: { type: string, maxLength: 500 }
+                skills:
+                  type: array
+                  maxItems: 20
+                  items: { type: string }
+      responses:
+        "200": { description: Profile updated }
+        "422": { $ref: "#/components/responses/Error" }
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: projecttrix_session
+  parameters:
+    ProjectId:
+      in: path
+      name: id
+      required: true
+      schema: { type: string, format: uuid }
+  responses:
+    Error:
+      description: Request failed
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+  schemas:
+    Difficulty:
+      type: string
+      enum: [BEGINNER, INTERMEDIATE, ADVANCED]
+    ProjectStatus:
+      type: string
+      enum: [DRAFT, RECRUITING, IN_PROGRESS, COMPLETED]
+    ProjectRoleInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 2, maxLength: 80 }
+        skills:
+          type: array
+          maxItems: 10
+          items: { type: string }
+        description: { type: string, maxLength: 300 }
+    CreateProject:
+      type: object
+      required: [title, summary, description, technologies, difficulty, roles]
+      properties:
+        title: { type: string, minLength: 5, maxLength: 100 }
+        summary: { type: string, minLength: 20, maxLength: 180 }
+        description: { type: string, minLength: 50, maxLength: 10000 }
+        technologies:
+          type: array
+          minItems: 1
+          maxItems: 8
+          items: { type: string }
+        difficulty: { $ref: "#/components/schemas/Difficulty" }
+        expectedDuration: { type: string, maxLength: 80 }
+        roles:
+          type: array
+          minItems: 1
+          maxItems: 10
+          items: { $ref: "#/components/schemas/ProjectRoleInput" }
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
+            fields:
+              type: object
+              additionalProperties: { type: string }
