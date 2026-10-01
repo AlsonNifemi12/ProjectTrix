@@ -7,7 +7,7 @@ import { env } from "./config/env.js";
 const app = createApp();
 const server = createServer(app);
 
-server.listen(env.PORT, () => {
+server.listen(env.PORT, "0.0.0.0", () => {
   console.log(`ProjectTrix API listening on http://localhost:${env.PORT}`);
 });
 

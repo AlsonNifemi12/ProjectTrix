@@ -33,13 +33,6 @@ const schema = z
       });
     }
 
-    if (!value.GITLAB_CLIENT_ID || !value.GITLAB_CLIENT_SECRET) {
-      context.addIssue({
-        code: "custom",
-        path: ["GITLAB_CLIENT_ID"],
-        message: "GitLab OAuth credentials are required in production.",
-      });
-    }
   });
 
 export const env = schema.parse(process.env);

@@ -57,7 +57,7 @@ After authorization, the backend creates the local user, sets an HttpOnly sessio
 | PATCH | `/api/v1/users/me` | Yes | Update bio or skills |
 | GET | `/api/v1/metadata/technologies` | No | Allowed technologies |
 
-The machine-readable contract is in `docs/openapi.yaml`.
+Interactive Swagger documentation is available at `/docs`. The raw OpenAPI file is available at `/openapi.yaml`.
 
 ## Commands
 
@@ -69,6 +69,16 @@ npm run build
 npm run db:migrate
 npm run db:seed
 ```
+
+## Render deployment
+
+Create a Render PostgreSQL database and a Node web service connected to this repository.
+
+- Build command: `npm ci && npm run build`
+- Start command: `npm run start:render`
+- Health check path: `/api/v1/health`
+
+After deployment, Swagger is available at `https://YOUR-SERVICE.onrender.com/docs`.
 
 ## Deployment checklist
 

@@ -1,8 +1,13 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import express from "express";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
+import swaggerUi from "swagger-ui-express";
+import YAML from "yaml";
 
 import { checkDatabase } from "./config/database.js";
 import { corsOrigins, env } from "./config/env.js";
@@ -17,6 +22,9 @@ import { HttpError } from "./utils/http-error.js";
 
 export function createApp() {
   const app = express();
+  const openApiDocument = YAML.parse(
+    readFileSync(path.resolve(process.cwd(), "docs/openapi.yaml"), "utf8"),
+  );
 
   app.disable("x-powered-by");
   app.set("trust proxy", 1);
@@ -50,7 +58,7 @@ export function createApp() {
       data: {
         name: "ProjectTrix API",
         version: "0.1.0",
-        documentation: "/docs/openapi.yaml",
+        documentation: "/docs",
       },
     });
   });
@@ -67,7 +75,17 @@ export function createApp() {
     }),
   );
 
-  app.use("/docs", express.static("docs"));
+  app.get("/openapi.yaml", (_request, response) => {
+    response.sendFile(path.resolve(process.cwd(), "docs/openapi.yaml"));
+  });
+  app.use(
+    "/docs",
+    swaggerUi.serve,
+    swaggerUi.setup(openApiDocument, {
+      explorer: true,
+      customSiteTitle: "ProjectTrix API Documentation",
+    }),
+  );
   app.use("/api/v1/auth", authRouter);
   app.use("/api/v1/projects", projectsRouter);
   app.use("/api/v1/users", usersRouter);

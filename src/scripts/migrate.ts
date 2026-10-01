@@ -1,11 +1,9 @@
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { pool } from "../config/database.js";
 
-const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
-const migrationsDirectory = path.resolve(currentDirectory, "../../migrations");
+const migrationsDirectory = path.resolve(process.cwd(), "migrations");
 
 async function migrate() {
   await pool.query(`
