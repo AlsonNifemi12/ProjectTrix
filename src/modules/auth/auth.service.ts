@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 
 import { pool } from "../../config/database.js";
 import { env } from "../../config/env.js";
@@ -108,8 +108,8 @@ export async function fetchGitLabUser(accessToken: string) {
 
 export async function upsertGitLabUser(gitlabUser: GitLabUser) {
   const result = await pool.query<AppUser & { display_name: string; avatar_url: string | null; gitlab_profile_url: string }>(
-    `INSERT INTO users (gitlab_id, username, display_name, avatar_url, gitlab_profile_url)
-     VALUES ($1, $2, $3, $4, $5)
+    `INSERT INTO users (id, gitlab_id, username, display_name, avatar_url, gitlab_profile_url)
+     VALUES ($1, $2, $3, $4, $5, $6)
      ON CONFLICT (gitlab_id) DO UPDATE SET
        username = EXCLUDED.username,
        display_name = EXCLUDED.display_name,
@@ -117,7 +117,14 @@ export async function upsertGitLabUser(gitlabUser: GitLabUser) {
        gitlab_profile_url = EXCLUDED.gitlab_profile_url,
        updated_at = NOW()
      RETURNING id, username, display_name, avatar_url, gitlab_profile_url, bio, skills`,
-    [String(gitlabUser.id), gitlabUser.username, gitlabUser.name || gitlabUser.username, gitlabUser.avatar_url, gitlabUser.web_url],
+    [
+      randomUUID(),
+      String(gitlabUser.id),
+      gitlabUser.username,
+      gitlabUser.name || gitlabUser.username,
+      gitlabUser.avatar_url,
+      gitlabUser.web_url,
+    ],
   );
   const row = result.rows[0];
   if (!row) throw new HttpError(500, "USER_UPSERT_FAILED", "The user account could not be saved.");
