@@ -99,11 +99,26 @@ export async function fetchGitLabUser(accessToken: string) {
   const response = await fetch(userUrl, {
     headers: { Accept: "application/json", Authorization: `Bearer ${accessToken}` },
   });
-  const body = (await response.json().catch(() => ({}))) as GitLabUser;
+
+  const responseText = await response.text();
+  let responseBody: unknown;
+  try {
+    responseBody = JSON.parse(responseText);
+  } catch {
+    responseBody = responseText.slice(0, 2_000);
+  }
+
+  const body = responseBody as Partial<GitLabUser>;
   if (!response.ok || !body.id || !body.username) {
+    console.error("GitLab profile request failed", {
+      url: userUrl.toString(),
+      status: response.status,
+      statusText: response.statusText,
+      body: responseBody,
+    });
     throw new HttpError(502, "GITLAB_PROFILE_FAILED", "The GitLab profile could not be loaded.");
   }
-  return body;
+  return body as GitLabUser;
 }
 
 export async function upsertGitLabUser(gitlabUser: GitLabUser) {
