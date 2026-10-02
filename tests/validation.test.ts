@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { safeReturnTo } from "../src/modules/auth/auth.service.js";
+import { buildFrontendCallbackUrl, safeReturnTo } from "../src/modules/auth/auth.service.js";
 import { createProjectSchema } from "../src/modules/projects/project.schemas.js";
 
 describe("request validation", () => {
@@ -38,5 +38,16 @@ describe("request validation", () => {
     assert.equal(safeReturnTo("/projects/123"), "/projects/123");
     assert.equal(safeReturnTo("https://malicious.example"), "/projects");
     assert.equal(safeReturnTo("//malicious.example"), "/projects");
+  });
+
+  it("keeps a configured frontend subfolder in the OAuth callback URL", () => {
+    const callback = buildFrontendCallbackUrl(
+      "https://example.app.github.dev/ProjectTrix-main/",
+      "/ProjectTrix-main/create-project.html",
+    );
+    assert.equal(
+      callback.toString(),
+      "https://example.app.github.dev/ProjectTrix-main/auth/callback/?returnTo=%2FProjectTrix-main%2Fcreate-project.html",
+    );
   });
 });

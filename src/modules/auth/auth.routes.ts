@@ -7,6 +7,7 @@ import { asyncHandler } from "../../utils/async-handler.js";
 import { HttpError } from "../../utils/http-error.js";
 import {
   assertGitLabConfigured,
+  buildFrontendCallbackUrl,
   buildGitLabAuthorizationUrl,
   createOAuthState,
   exchangeGitLabCode,
@@ -50,8 +51,7 @@ router.get(
     setSessionCookie(response, user);
     response.clearCookie(OAUTH_COOKIE, { ...sessionCookieOptions, maxAge: undefined });
 
-    const redirect = new URL("/auth/callback", env.FRONTEND_URL);
-    redirect.searchParams.set("returnTo", returnTo);
+    const redirect = buildFrontendCallbackUrl(env.FRONTEND_URL, returnTo);
     response.redirect(redirect.toString());
   }),
 );

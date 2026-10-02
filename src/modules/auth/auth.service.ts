@@ -44,6 +44,13 @@ export function safeReturnTo(value: unknown) {
   return value.slice(0, 500);
 }
 
+export function buildFrontendCallbackUrl(frontendUrl: string, returnTo: string) {
+  const baseUrl = frontendUrl.endsWith("/") ? frontendUrl : `${frontendUrl}/`;
+  const redirect = new URL("auth/callback/", baseUrl);
+  redirect.searchParams.set("returnTo", safeReturnTo(returnTo));
+  return redirect;
+}
+
 export function createOAuthState(returnTo: string) {
   const state = randomBytes(32).toString("base64url");
   const encodedReturnTo = Buffer.from(returnTo, "utf8").toString("base64url");
