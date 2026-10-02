@@ -26,6 +26,30 @@ paths:
       responses:
         "302": { description: Redirect to GitLab }
         "503": { $ref: "#/components/responses/Error" }
+  /auth/register:
+    post:
+      summary: Create an account with email and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Register" }
+      responses:
+        "201": { description: Account created and session cookie set }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /auth/login:
+    post:
+      summary: Sign in with email and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Login" }
+      responses:
+        "200": { description: Signed in and session cookie set }
+        "401": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
   /auth/gitlab/callback:
     get:
       summary: Complete GitLab sign in
@@ -167,6 +191,20 @@ components:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
   schemas:
+    Register:
+      type: object
+      required: [displayName, username, email, password]
+      properties:
+        displayName: { type: string, minLength: 2, maxLength: 80 }
+        username: { type: string, minLength: 3, maxLength: 30, pattern: "^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?$" }
+        email: { type: string, format: email, maxLength: 320 }
+        password: { type: string, format: password, minLength: 8, maxLength: 128 }
+    Login:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email, maxLength: 320 }
+        password: { type: string, format: password, minLength: 1, maxLength: 128 }
     Difficulty:
       type: string
       enum: [BEGINNER, INTERMEDIATE, ADVANCED]

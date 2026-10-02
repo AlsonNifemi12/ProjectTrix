@@ -1,6 +1,6 @@
 # ProjectTrix API
 
-Backend API for a developer project discovery and collaboration application. The MVP supports GitLab sign in, public project discovery, project creation, profiles, technology options, and join requests.
+Backend API for a developer project discovery and collaboration application. The MVP supports email/password accounts, GitLab sign in, public project discovery, project creation, profiles, technology options, and join requests.
 
 ## Technology
 
@@ -8,9 +8,10 @@ Backend API for a developer project discovery and collaboration application. The
 - Express
 - PostgreSQL with SQL migrations
 - Zod request validation
+- Salted scrypt password hashing
 - GitLab OAuth 2 authorization code flow
 - HttpOnly cookie sessions
-- Vitest and Supertest
+- Node test runner and Supertest
 
 ## Run locally
 
@@ -40,6 +41,10 @@ GET /api/v1/auth/gitlab?returnTo=/projects
 
 After authorization, the backend creates the local user, sets an HttpOnly session cookie, and redirects to the frontend `/auth/callback` route.
 
+## Email and password accounts
+
+Native accounts use `POST /api/v1/auth/register` and `POST /api/v1/auth/login`. Passwords are salted and hashed with scrypt before storage. Both native and GitLab accounts receive the same HttpOnly application session cookie.
+
 ## Main routes
 
 | Method | Route | Authentication | Purpose |
@@ -47,6 +52,8 @@ After authorization, the backend creates the local user, sets an HttpOnly sessio
 | GET | `/api/v1/health` | No | Process health check |
 | GET | `/api/v1/ready` | No | Health check including PostgreSQL |
 | GET | `/api/v1/auth/gitlab` | No | Start GitLab sign in |
+| POST | `/api/v1/auth/register` | No | Create an email/password account |
+| POST | `/api/v1/auth/login` | No | Sign in with email and password |
 | GET | `/api/v1/auth/me` | Yes | Current user |
 | POST | `/api/v1/auth/logout` | Cookie | End session |
 | GET | `/api/v1/projects` | No | Search and filter projects |

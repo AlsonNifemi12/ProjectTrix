@@ -1,10 +1,44 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { buildFrontendCallbackUrl, safeReturnTo } from "../src/modules/auth/auth.service.js";
+import {
+  buildFrontendCallbackUrl,
+  hashPassword,
+  safeReturnTo,
+  verifyPassword,
+} from "../src/modules/auth/auth.service.js";
+import { loginSchema, registerSchema } from "../src/modules/auth/auth.schemas.js";
 import { createProjectSchema } from "../src/modules/projects/project.schemas.js";
 
 describe("request validation", () => {
+  it("accepts a valid email registration and normalizes identity fields", () => {
+    const result = registerSchema.parse({
+      displayName: " Ada Lovelace ",
+      username: "Ada_Lovelace",
+      email: "ADA@EXAMPLE.COM",
+      password: "project123",
+    });
+    assert.equal(result.username, "ada_lovelace");
+    assert.equal(result.email, "ada@example.com");
+  });
+
+  it("rejects weak registration passwords and invalid usernames", () => {
+    assert.equal(registerSchema.safeParse({
+      displayName: "Ada",
+      username: "not valid!",
+      email: "ada@example.com",
+      password: "password",
+    }).success, false);
+    assert.equal(loginSchema.safeParse({ email: "not-an-email", password: "x" }).success, false);
+  });
+
+  it("hashes passwords with a unique salt and verifies them safely", async () => {
+    const first = await hashPassword("project123");
+    const second = await hashPassword("project123");
+    assert.notEqual(first, second);
+    assert.equal(await verifyPassword("project123", first), true);
+    assert.equal(await verifyPassword("wrong-password", first), false);
+  });
   it("accepts a valid project payload", () => {
     const result = createProjectSchema.safeParse({
       title: "Accessible Study Planner",

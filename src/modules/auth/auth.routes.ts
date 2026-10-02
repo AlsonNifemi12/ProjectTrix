@@ -6,6 +6,7 @@ import { requireAuth } from "../../middleware/auth.js";
 import { asyncHandler } from "../../utils/async-handler.js";
 import { HttpError } from "../../utils/http-error.js";
 import {
+  authenticatePasswordUser,
   assertGitLabConfigured,
   buildFrontendCallbackUrl,
   buildGitLabAuthorizationUrl,
@@ -14,9 +15,11 @@ import {
   fetchGitLabUser,
   getUserById,
   readOAuthState,
+  registerPasswordUser,
   safeReturnTo,
   upsertGitLabUser,
 } from "./auth.service.js";
+import { loginSchema, registerSchema } from "./auth.schemas.js";
 import {
   clearSessionCookie,
   oauthCookieOptions,
@@ -26,6 +29,26 @@ import {
 
 const router = Router();
 const OAUTH_COOKIE = "projecttrix_oauth_state";
+
+router.post(
+  "/register",
+  asyncHandler(async (request, response) => {
+    const input = registerSchema.parse(request.body);
+    const user = await registerPasswordUser(input);
+    setSessionCookie(response, user);
+    response.status(201).json({ data: user, message: "Account created" });
+  }),
+);
+
+router.post(
+  "/login",
+  asyncHandler(async (request, response) => {
+    const input = loginSchema.parse(request.body);
+    const user = await authenticatePasswordUser(input.email, input.password);
+    setSessionCookie(response, user);
+    response.json({ data: user, message: "Signed in" });
+  }),
+);
 
 router.get("/gitlab", (request, response) => {
   assertGitLabConfigured();

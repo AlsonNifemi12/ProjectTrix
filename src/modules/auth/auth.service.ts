@@ -1,8 +1,12 @@
-import { randomBytes, randomUUID } from "node:crypto";
+import { randomBytes, randomUUID, scrypt as scryptCallback, timingSafeEqual } from "node:crypto";
+import { promisify } from "node:util";
 
 import { pool } from "../../config/database.js";
 import { env } from "../../config/env.js";
 import { HttpError } from "../../utils/http-error.js";
+import type { RegisterInput } from "./auth.schemas.js";
+
+const scrypt = promisify(scryptCallback);
 
 type GitLabTokenResponse = {
   access_token?: string;
@@ -22,7 +26,7 @@ export type AppUser = {
   username: string;
   displayName: string;
   avatarUrl: string | null;
-  gitlabProfileUrl: string;
+  gitlabProfileUrl: string | null;
   bio: string;
   skills: string[];
 };
@@ -35,6 +39,94 @@ export function assertGitLabConfigured() {
       "GitLab sign in has not been configured on this server.",
     );
   }
+}
+
+export async function hashPassword(password: string) {
+  const salt = randomBytes(16).toString("base64url");
+  const derivedKey = (await scrypt(password, salt, 64)) as Buffer;
+  return `scrypt$${salt}$${derivedKey.toString("base64url")}`;
+}
+
+export async function verifyPassword(password: string, storedHash: string) {
+  const [algorithm, salt, encodedHash] = storedHash.split("$");
+  if (algorithm !== "scrypt" || !salt || !encodedHash) return false;
+  const expected = Buffer.from(encodedHash, "base64url");
+  const actual = (await scrypt(password, salt, expected.length)) as Buffer;
+  return expected.length === actual.length && timingSafeEqual(expected, actual);
+}
+
+function mapUser(row: {
+  id: string;
+  username: string;
+  display_name: string;
+  avatar_url: string | null;
+  gitlab_profile_url: string | null;
+  bio: string;
+  skills: string[];
+}): AppUser {
+  return {
+    id: row.id,
+    username: row.username,
+    displayName: row.display_name,
+    avatarUrl: row.avatar_url,
+    gitlabProfileUrl: row.gitlab_profile_url,
+    bio: row.bio,
+    skills: row.skills,
+  };
+}
+
+export async function registerPasswordUser(input: RegisterInput) {
+  const passwordHash = await hashPassword(input.password);
+  try {
+    const result = await pool.query<{
+      id: string;
+      username: string;
+      display_name: string;
+      avatar_url: string | null;
+      gitlab_profile_url: string | null;
+      bio: string;
+      skills: string[];
+    }>(
+      `INSERT INTO users (id, email, password_hash, username, display_name)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, username, display_name, avatar_url, gitlab_profile_url, bio, skills`,
+      [randomUUID(), input.email, passwordHash, input.username, input.displayName],
+    );
+    const row = result.rows[0];
+    if (!row) throw new HttpError(500, "USER_CREATE_FAILED", "The account could not be created.");
+    return mapUser(row);
+  } catch (error) {
+    const databaseError = error as { code?: string; constraint?: string };
+    if (databaseError.code === "23505") {
+      if (databaseError.constraint === "users_email_lower_unique") {
+        throw new HttpError(409, "EMAIL_ALREADY_REGISTERED", "An account already uses this email address.");
+      }
+      throw new HttpError(409, "USERNAME_ALREADY_TAKEN", "That username is already taken.");
+    }
+    throw error;
+  }
+}
+
+export async function authenticatePasswordUser(email: string, password: string) {
+  const result = await pool.query<{
+    id: string;
+    username: string;
+    display_name: string;
+    avatar_url: string | null;
+    gitlab_profile_url: string | null;
+    bio: string;
+    skills: string[];
+    password_hash: string | null;
+  }>(
+    `SELECT id, username, display_name, avatar_url, gitlab_profile_url, bio, skills, password_hash
+     FROM users WHERE LOWER(email) = LOWER($1)`,
+    [email],
+  );
+  const row = result.rows[0];
+  if (!row?.password_hash || !(await verifyPassword(password, row.password_hash))) {
+    throw new HttpError(401, "INVALID_CREDENTIALS", "The email or password is incorrect.");
+  }
+  return mapUser(row);
 }
 
 export function safeReturnTo(value: unknown) {
@@ -129,7 +221,7 @@ export async function fetchGitLabUser(accessToken: string) {
 }
 
 export async function upsertGitLabUser(gitlabUser: GitLabUser) {
-  const result = await pool.query<AppUser & { display_name: string; avatar_url: string | null; gitlab_profile_url: string }>(
+  const result = await pool.query<AppUser & { display_name: string; avatar_url: string | null; gitlab_profile_url: string | null }>(
     `INSERT INTO users (id, gitlab_id, username, display_name, avatar_url, gitlab_profile_url)
      VALUES ($1, $2, $3, $4, $5, $6)
      ON CONFLICT (gitlab_id) DO UPDATE SET
@@ -150,15 +242,7 @@ export async function upsertGitLabUser(gitlabUser: GitLabUser) {
   );
   const row = result.rows[0];
   if (!row) throw new HttpError(500, "USER_UPSERT_FAILED", "The user account could not be saved.");
-  return {
-    id: row.id,
-    username: row.username,
-    displayName: row.display_name,
-    avatarUrl: row.avatar_url,
-    gitlabProfileUrl: row.gitlab_profile_url,
-    bio: row.bio,
-    skills: row.skills,
-  };
+  return mapUser(row);
 }
 
 export async function getUserById(id: string) {
@@ -167,7 +251,7 @@ export async function getUserById(id: string) {
     username: string;
     display_name: string;
     avatar_url: string | null;
-    gitlab_profile_url: string;
+    gitlab_profile_url: string | null;
     bio: string;
     skills: string[];
   }>(
@@ -177,13 +261,5 @@ export async function getUserById(id: string) {
   );
   const row = result.rows[0];
   if (!row) return null;
-  return {
-    id: row.id,
-    username: row.username,
-    displayName: row.display_name,
-    avatarUrl: row.avatar_url,
-    gitlabProfileUrl: row.gitlab_profile_url,
-    bio: row.bio,
-    skills: row.skills,
-  };
+  return mapUser(row);
 }
