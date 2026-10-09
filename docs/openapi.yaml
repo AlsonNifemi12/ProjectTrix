@@ -127,7 +127,30 @@ paths:
       responses:
         "200": { description: Project details and open roles }
         "404": { $ref: "#/components/responses/Error" }
+    patch:
+      summary: Update project status or GitLab repository
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateProject" }
+      responses:
+        "200": { description: Project updated }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
   /projects/{id}/join-requests:
+    get:
+      summary: List applications for a project owner
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200": { description: Project applications }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
     post:
       summary: Request to join an open role
       security: [{ cookieAuth: [] }]
@@ -147,6 +170,30 @@ paths:
         "201": { description: Join request created }
         "409": { $ref: "#/components/responses/Error" }
         "422": { $ref: "#/components/responses/Error" }
+  /projects/{id}/join-requests/{requestId}:
+    patch:
+      summary: Accept or reject a project application
+      security: [{ cookieAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+        - in: path
+          name: requestId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [ACCEPTED, REJECTED] }
+      responses:
+        "200": { description: Application reviewed }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
   /users/me:
     get:
       summary: Return the full current-user profile
@@ -172,6 +219,13 @@ paths:
       responses:
         "200": { description: Profile updated }
         "422": { $ref: "#/components/responses/Error" }
+  /users/me/applications:
+    get:
+      summary: List the current user's project applications
+      security: [{ cookieAuth: [] }]
+      responses:
+        "200": { description: Application history and current statuses }
+        "401": { $ref: "#/components/responses/Error" }
 components:
   securitySchemes:
     cookieAuth:
@@ -235,11 +289,20 @@ components:
           items: { type: string }
         difficulty: { $ref: "#/components/schemas/Difficulty" }
         expectedDuration: { type: string, maxLength: 80 }
+        repositoryUrl: { type: string, format: uri, example: "https://gitlab.com/team/project" }
         roles:
           type: array
           minItems: 1
           maxItems: 10
           items: { $ref: "#/components/schemas/ProjectRoleInput" }
+    UpdateProject:
+      type: object
+      properties:
+        status: { $ref: "#/components/schemas/ProjectStatus" }
+        repositoryUrl:
+          oneOf:
+            - { type: string, format: uri, example: "https://gitlab.com/team/project" }
+            - { type: "null" }
     Error:
       type: object
       required: [error]

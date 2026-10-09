@@ -1,6 +1,6 @@
 # ProjectTrix API
 
-Backend API for a developer project discovery and collaboration application. The MVP supports email/password accounts, GitLab sign in, public project discovery, project creation, profiles, technology options, and join requests.
+Backend API for a developer project discovery and collaboration application. The MVP supports email/password accounts, GitLab sign in, public project discovery, project creation, profiles, role applications, owner review, accepted teams, project lifecycle updates, and optional GitLab repository links.
 
 ## Technology
 
@@ -59,8 +59,12 @@ Native accounts use `POST /api/v1/auth/register` and `POST /api/v1/auth/login`. 
 | GET | `/api/v1/projects` | No | Search and filter projects |
 | GET | `/api/v1/projects/:id` | No | Project details |
 | POST | `/api/v1/projects` | Yes | Create a project |
+| PATCH | `/api/v1/projects/:id` | Owner | Update project status or GitLab repository |
 | POST | `/api/v1/projects/:id/join-requests` | Yes | Request an open role |
+| GET | `/api/v1/projects/:id/join-requests` | Owner | Review the project's applications |
+| PATCH | `/api/v1/projects/:id/join-requests/:requestId` | Owner | Accept or reject an application |
 | GET | `/api/v1/users/me` | Yes | Full current-user profile |
+| GET | `/api/v1/users/me/applications` | Yes | Track the current user's applications |
 | PATCH | `/api/v1/users/me` | Yes | Update bio or skills |
 | GET | `/api/v1/metadata/technologies` | No | Allowed technologies |
 
@@ -95,6 +99,8 @@ After deployment, Swagger is available at `https://YOUR-SERVICE.onrender.com/doc
 - Set `FRONTEND_URL`, `CORS_ORIGINS`, `API_URL`, and the exact GitLab callback URL.
 - When the frontend and API are on different sites, set `COOKIE_SAME_SITE=none` and use HTTPS.
 - Run `npm run db:migrate` before starting the deployed API.
+
+The Render start command runs every pending SQL migration automatically. Migration `003_collaboration_workflow.sql` adds the GitLab repository field and the durable accepted-member records required by the collaboration dashboard.
 
 ## Error shape
 

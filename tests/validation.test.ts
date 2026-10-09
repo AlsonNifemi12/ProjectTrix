@@ -8,7 +8,11 @@ import {
   verifyPassword,
 } from "../src/modules/auth/auth.service.js";
 import { loginSchema, registerSchema } from "../src/modules/auth/auth.schemas.js";
-import { createProjectSchema } from "../src/modules/projects/project.schemas.js";
+import {
+  createProjectSchema,
+  reviewJoinRequestSchema,
+  updateProjectSchema,
+} from "../src/modules/projects/project.schemas.js";
 
 describe("request validation", () => {
   it("accepts a valid email registration and normalizes identity fields", () => {
@@ -47,6 +51,7 @@ describe("request validation", () => {
       technologies: ["React", "Node.js", "PostgreSQL"],
       difficulty: "INTERMEDIATE",
       expectedDuration: "4 to 6 weeks",
+      repositoryUrl: "https://gitlab.com/ada/study-planner",
       roles: [{
         name: "Backend Developer",
         skills: ["Node.js", "PostgreSQL"],
@@ -54,6 +59,18 @@ describe("request validation", () => {
       }],
     });
     assert.equal(result.success, true);
+  });
+
+  it("validates owner project updates and application decisions", () => {
+    assert.equal(updateProjectSchema.safeParse({
+      status: "IN_PROGRESS",
+      repositoryUrl: "https://gitlab.com/projecttrix/web-app",
+    }).success, true);
+    assert.equal(updateProjectSchema.safeParse({
+      repositoryUrl: "https://github.com/projecttrix/web-app",
+    }).success, false);
+    assert.equal(reviewJoinRequestSchema.safeParse({ status: "ACCEPTED" }).success, true);
+    assert.equal(reviewJoinRequestSchema.safeParse({ status: "PENDING" }).success, false);
   });
 
   it("rejects invalid technologies and incomplete content", () => {

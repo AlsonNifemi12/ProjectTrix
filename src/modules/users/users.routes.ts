@@ -27,7 +27,7 @@ router.get(
       username: string;
       display_name: string;
       avatar_url: string | null;
-      gitlab_profile_url: string;
+      gitlab_profile_url: string | null;
       bio: string;
       skills: string[];
       created_at: Date;
@@ -46,9 +46,15 @@ router.get(
       status: string;
       technologies: string[];
       created_at: Date;
+      pending_application_count: string;
+      member_count: string;
     }>(
-      `SELECT id, title, summary, status, technologies, created_at
-       FROM projects WHERE owner_id = $1 ORDER BY created_at DESC`,
+      `SELECT p.id, p.title, p.summary, p.status, p.technologies, p.created_at,
+              (SELECT COUNT(*) FROM join_requests jr
+               WHERE jr.project_id = p.id AND jr.status = 'PENDING') AS pending_application_count,
+              (SELECT COUNT(*) FROM project_members pm
+               WHERE pm.project_id = p.id) AS member_count
+       FROM projects p WHERE p.owner_id = $1 ORDER BY p.created_at DESC`,
       [request.user!.id],
     );
 
@@ -68,9 +74,63 @@ router.get(
           summary: project.summary,
           status: project.status,
           technologies: project.technologies,
+          pendingApplicationCount: Number(project.pending_application_count),
+          memberCount: Number(project.member_count),
           createdAt: project.created_at,
         })),
       },
+    });
+  }),
+);
+
+router.get(
+  "/me/applications",
+  asyncHandler(async (request, response) => {
+    const result = await pool.query<{
+      id: string;
+      status: string;
+      message: string;
+      created_at: Date;
+      updated_at: Date;
+      project_id: string;
+      project_title: string;
+      project_status: string;
+      role_id: string;
+      role_name: string;
+      owner_username: string;
+      owner_display_name: string;
+    }>(
+      `SELECT jr.id, jr.status, jr.message, jr.created_at, jr.updated_at,
+              p.id AS project_id, p.title AS project_title, p.status AS project_status,
+              r.id AS role_id, r.name AS role_name,
+              owner.username AS owner_username, owner.display_name AS owner_display_name
+       FROM join_requests jr
+       JOIN projects p ON p.id = jr.project_id
+       JOIN project_roles r ON r.id = jr.role_id
+       JOIN users owner ON owner.id = p.owner_id
+       WHERE jr.applicant_id = $1
+       ORDER BY jr.updated_at DESC`,
+      [request.user!.id],
+    );
+
+    response.json({
+      data: result.rows.map((row) => ({
+        id: row.id,
+        status: row.status,
+        message: row.message,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        project: {
+          id: row.project_id,
+          title: row.project_title,
+          status: row.project_status,
+          owner: {
+            username: row.owner_username,
+            displayName: row.owner_display_name,
+          },
+        },
+        role: { id: row.role_id, name: row.role_name },
+      })),
     });
   }),
 );
