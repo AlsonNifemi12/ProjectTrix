@@ -3,7 +3,9 @@ import { describe, it } from "node:test";
 
 import {
   buildFrontendCallbackUrl,
+  createOAuthState,
   hashPassword,
+  readOAuthState,
   safeReturnTo,
   verifyPassword,
 } from "../src/modules/auth/auth.service.js";
@@ -70,6 +72,7 @@ describe("request validation", () => {
       repositoryUrl: "https://github.com/projecttrix/web-app",
     }).success, false);
     assert.equal(reviewJoinRequestSchema.safeParse({ status: "ACCEPTED" }).success, true);
+    assert.equal(reviewJoinRequestSchema.safeParse({ status: "INTERVIEW" }).success, true);
     assert.equal(reviewJoinRequestSchema.safeParse({ status: "PENDING" }).success, false);
   });
 
@@ -100,5 +103,22 @@ describe("request validation", () => {
       callback.toString(),
       "https://example.app.github.dev/ProjectTrix-main/auth/callback/?returnTo=%2FProjectTrix-main%2Fcreate-project.html",
     );
+  });
+
+  it("preserves the allowed initiating frontend in the signed OAuth state", () => {
+    const { state, cookieValue } = createOAuthState(
+      "/StackMate-main/project-details.html?id=123",
+      "http://localhost:5173/StackMate-main/",
+    );
+    assert.deepEqual(readOAuthState(cookieValue, state), {
+      returnTo: "/StackMate-main/project-details.html?id=123",
+      frontendUrl: "http://localhost:5173/StackMate-main/",
+    });
+  });
+
+  it("rejects an unapproved OAuth callback frontend", () => {
+    const { state, cookieValue } = createOAuthState("/projects.html", "https://malicious.example/");
+    const oauthState = readOAuthState(cookieValue, state);
+    assert.notEqual(oauthState?.frontendUrl, "https://malicious.example/");
   });
 });

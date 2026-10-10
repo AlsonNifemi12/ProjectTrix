@@ -172,7 +172,7 @@ paths:
         "422": { $ref: "#/components/responses/Error" }
   /projects/{id}/join-requests/{requestId}:
     patch:
-      summary: Accept or reject a project application
+      summary: Move an application to interview, accept it, or reject it
       security: [{ cookieAuth: [] }]
       parameters:
         - $ref: "#/components/parameters/ProjectId"
@@ -188,7 +188,7 @@ paths:
               type: object
               required: [status]
               properties:
-                status: { type: string, enum: [ACCEPTED, REJECTED] }
+                status: { type: string, enum: [INTERVIEW, ACCEPTED, REJECTED] }
       responses:
         "200": { description: Application reviewed }
         "403": { $ref: "#/components/responses/Error" }
@@ -225,6 +225,20 @@ paths:
       security: [{ cookieAuth: [] }]
       responses:
         "200": { description: Application history and current statuses }
+        "401": { $ref: "#/components/responses/Error" }
+  /users/me/projects/applied:
+    get:
+      summary: List projects the current user has applied to
+      security: [{ cookieAuth: [] }]
+      responses:
+        "200": { description: Applied projects with roles and application statuses }
+        "401": { $ref: "#/components/responses/Error" }
+  /users/me/projects/collaborating:
+    get:
+      summary: List projects where the current user is an accepted collaborator
+      security: [{ cookieAuth: [] }]
+      responses:
+        "200": { description: Collaborating project summaries and assigned roles }
         "401": { $ref: "#/components/responses/Error" }
 components:
   securitySchemes:

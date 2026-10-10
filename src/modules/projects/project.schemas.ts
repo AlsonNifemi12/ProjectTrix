@@ -56,5 +56,5 @@ export const updateProjectSchema = z
   });
 
 export const reviewJoinRequestSchema = z.object({
-  status: z.enum(["ACCEPTED", "REJECTED"]),
+  status: z.enum(["INTERVIEW", "ACCEPTED", "REJECTED"]),
 });

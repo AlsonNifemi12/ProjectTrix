@@ -391,6 +391,7 @@ router.get(
       status: string;
       message: string;
       created_at: Date;
+      updated_at: Date;
       role_id: string;
       role_name: string;
       applicant_id: string;
@@ -400,7 +401,7 @@ router.get(
       applicant_bio: string;
       applicant_skills: string[];
     }>(
-      `SELECT jr.id, jr.status, jr.message, jr.created_at,
+      `SELECT jr.id, jr.status, jr.message, jr.created_at, jr.updated_at,
               r.id AS role_id, r.name AS role_name,
               u.id AS applicant_id, u.username AS applicant_username,
               u.display_name AS applicant_display_name,
@@ -410,7 +411,11 @@ router.get(
        JOIN project_roles r ON r.id = jr.role_id
        JOIN users u ON u.id = jr.applicant_id
        WHERE jr.project_id = $1
-       ORDER BY CASE jr.status WHEN 'PENDING' THEN 0 ELSE 1 END, jr.created_at DESC`,
+       ORDER BY CASE jr.status
+         WHEN 'PENDING' THEN 0
+         WHEN 'INTERVIEW' THEN 1
+         ELSE 2
+       END, jr.updated_at DESC`,
       [projectId],
     );
 
@@ -420,6 +425,7 @@ router.get(
         status: row.status,
         message: row.message,
         createdAt: row.created_at,
+        updatedAt: row.updated_at,
         role: { id: row.role_id, name: row.role_name },
         applicant: {
           id: row.applicant_id,
@@ -468,8 +474,11 @@ router.patch(
       if (joinRequest.owner_id !== request.user!.id) {
         throw new HttpError(403, "PROJECT_OWNER_REQUIRED", "Only the project owner can review applications.");
       }
-      if (joinRequest.status !== "PENDING") {
-        throw new HttpError(409, "JOIN_REQUEST_REVIEWED", "This application has already been reviewed.");
+      if (["ACCEPTED", "REJECTED", "CANCELLED"].includes(joinRequest.status)) {
+        throw new HttpError(409, "JOIN_REQUEST_REVIEWED", "This application has already reached a final decision.");
+      }
+      if (joinRequest.status === input.status) {
+        throw new HttpError(409, "JOIN_REQUEST_UNCHANGED", `This application is already at the ${input.status.toLowerCase()} stage.`);
       }
 
       if (input.status === "ACCEPTED") {
@@ -489,7 +498,8 @@ router.patch(
         await client.query("UPDATE project_roles SET is_open = FALSE WHERE id = $1", [joinRequest.role_id]);
         await client.query(
           `UPDATE join_requests SET status = 'REJECTED', updated_at = NOW()
-           WHERE project_id = $1 AND role_id = $2 AND id <> $3 AND status = 'PENDING'`,
+           WHERE project_id = $1 AND role_id = $2 AND id <> $3
+             AND status IN ('PENDING', 'INTERVIEW')`,
           [projectId, joinRequest.role_id, requestId],
         );
       }

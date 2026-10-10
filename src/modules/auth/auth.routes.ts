@@ -1,7 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
 
-import { env } from "../../config/env.js";
 import { requireAuth } from "../../middleware/auth.js";
 import { asyncHandler } from "../../utils/async-handler.js";
 import { HttpError } from "../../utils/http-error.js";
@@ -16,6 +15,7 @@ import {
   getUserById,
   readOAuthState,
   registerPasswordUser,
+  safeFrontendUrl,
   safeReturnTo,
   upsertGitLabUser,
 } from "./auth.service.js";
@@ -53,7 +53,8 @@ router.post(
 router.get("/gitlab", (request, response) => {
   assertGitLabConfigured();
   const returnTo = safeReturnTo(request.query.returnTo);
-  const { state, cookieValue } = createOAuthState(returnTo);
+  const frontendUrl = safeFrontendUrl(request.query.frontendUrl);
+  const { state, cookieValue } = createOAuthState(returnTo, frontendUrl);
   response.cookie(OAUTH_COOKIE, cookieValue, oauthCookieOptions);
   response.redirect(buildGitLabAuthorizationUrl(state));
 });
@@ -63,8 +64,8 @@ router.get(
   asyncHandler(async (request, response) => {
     assertGitLabConfigured();
     const query = z.object({ code: z.string().min(1), state: z.string().min(1) }).parse(request.query);
-    const returnTo = readOAuthState(request.cookies?.[OAUTH_COOKIE], query.state);
-    if (!returnTo) {
+    const oauthState = readOAuthState(request.cookies?.[OAUTH_COOKIE], query.state);
+    if (!oauthState) {
       throw new HttpError(400, "INVALID_OAUTH_STATE", "The sign in request expired or could not be verified.");
     }
 
@@ -74,7 +75,7 @@ router.get(
     setSessionCookie(response, user);
     response.clearCookie(OAUTH_COOKIE, { ...sessionCookieOptions, maxAge: undefined });
 
-    const redirect = buildFrontendCallbackUrl(env.FRONTEND_URL, returnTo);
+    const redirect = buildFrontendCallbackUrl(oauthState.frontendUrl, oauthState.returnTo);
     response.redirect(redirect.toString());
   }),
 );

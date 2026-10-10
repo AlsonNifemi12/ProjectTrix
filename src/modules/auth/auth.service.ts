@@ -2,7 +2,7 @@ import { randomBytes, randomUUID, scrypt as scryptCallback, timingSafeEqual } fr
 import { promisify } from "node:util";
 
 import { pool } from "../../config/database.js";
-import { env } from "../../config/env.js";
+import { corsOrigins, env } from "../../config/env.js";
 import { HttpError } from "../../utils/http-error.js";
 import type { RegisterInput } from "./auth.schemas.js";
 
@@ -136,6 +136,44 @@ export function safeReturnTo(value: unknown) {
   return value.slice(0, 500);
 }
 
+function configuredFrontendUrl() {
+  const candidates = env.FRONTEND_URL.split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  for (const candidate of candidates) {
+    try {
+      const url = new URL(candidate);
+      if (url.protocol === "https:" || url.hostname === "localhost" || url.hostname === "127.0.0.1") {
+        return url.toString();
+      }
+    } catch {
+      // Ignore malformed legacy values and try the next configured URL.
+    }
+  }
+
+  return "http://localhost:5173/";
+}
+
+export function safeFrontendUrl(value: unknown) {
+  if (typeof value === "string") {
+    try {
+      const url = new URL(value);
+      const isSafeProtocol = url.protocol === "https:"
+        || (url.protocol === "http:" && ["localhost", "127.0.0.1"].includes(url.hostname));
+      if (isSafeProtocol && corsOrigins.includes(url.origin)) {
+        url.search = "";
+        url.hash = "";
+        return url.toString();
+      }
+    } catch {
+      // Fall back to the configured canonical frontend below.
+    }
+  }
+
+  return configuredFrontendUrl();
+}
+
 export function buildFrontendCallbackUrl(frontendUrl: string, returnTo: string) {
   const baseUrl = frontendUrl.endsWith("/") ? frontendUrl : `${frontendUrl}/`;
   const redirect = new URL("auth/callback/", baseUrl);
@@ -143,21 +181,38 @@ export function buildFrontendCallbackUrl(frontendUrl: string, returnTo: string) 
   return redirect;
 }
 
-export function createOAuthState(returnTo: string) {
+export function createOAuthState(returnTo: string, frontendUrl: string) {
   const state = randomBytes(32).toString("base64url");
-  const encodedReturnTo = Buffer.from(returnTo, "utf8").toString("base64url");
-  return { state, cookieValue: `${state}.${encodedReturnTo}` };
+  const payload = JSON.stringify({
+    returnTo: safeReturnTo(returnTo),
+    frontendUrl: safeFrontendUrl(frontendUrl),
+  });
+  const encodedPayload = Buffer.from(payload, "utf8").toString("base64url");
+  return { state, cookieValue: `${state}.${encodedPayload}` };
 }
 
 export function readOAuthState(cookieValue: unknown, returnedState: unknown) {
   if (typeof cookieValue !== "string" || typeof returnedState !== "string") return null;
-  const [expectedState, encodedReturnTo] = cookieValue.split(".", 2);
-  if (!expectedState || !encodedReturnTo || expectedState !== returnedState) return null;
+  const [expectedState, encodedPayload] = cookieValue.split(".", 2);
+  if (!expectedState || !encodedPayload || expectedState !== returnedState) return null;
 
   try {
-    return safeReturnTo(Buffer.from(encodedReturnTo, "base64url").toString("utf8"));
+    const decoded = Buffer.from(encodedPayload, "base64url").toString("utf8");
+    const payload = JSON.parse(decoded) as { returnTo?: unknown; frontendUrl?: unknown };
+    return {
+      returnTo: safeReturnTo(payload.returnTo),
+      frontendUrl: safeFrontendUrl(payload.frontendUrl),
+    };
   } catch {
-    return null;
+    // Keep OAuth attempts started immediately before this deployment working.
+    try {
+      return {
+        returnTo: safeReturnTo(Buffer.from(encodedPayload, "base64url").toString("utf8")),
+        frontendUrl: safeFrontendUrl(undefined),
+      };
+    } catch {
+      return null;
+    }
   }
 }
 

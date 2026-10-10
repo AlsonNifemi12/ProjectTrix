@@ -84,7 +84,7 @@ router.get(
 );
 
 router.get(
-  "/me/applications",
+  ["/me/applications", "/me/projects/applied"],
   asyncHandler(async (request, response) => {
     const result = await pool.query<{
       id: string;
@@ -130,6 +130,57 @@ router.get(
           },
         },
         role: { id: row.role_id, name: row.role_name },
+      })),
+    });
+  }),
+);
+
+router.get(
+  "/me/projects/collaborating",
+  asyncHandler(async (request, response) => {
+    const result = await pool.query<{
+      id: string;
+      title: string;
+      summary: string;
+      status: string;
+      technologies: string[];
+      repository_url: string | null;
+      role_id: string | null;
+      role_name: string | null;
+      joined_at: Date;
+      owner_username: string;
+      owner_display_name: string;
+      owner_avatar_url: string | null;
+    }>(
+      `SELECT p.id, p.title, p.summary, p.status, p.technologies, p.repository_url,
+              pm.role_id, r.name AS role_name, pm.joined_at,
+              owner.username AS owner_username,
+              owner.display_name AS owner_display_name,
+              owner.avatar_url AS owner_avatar_url
+       FROM project_members pm
+       JOIN projects p ON p.id = pm.project_id
+       LEFT JOIN project_roles r ON r.id = pm.role_id
+       JOIN users owner ON owner.id = p.owner_id
+       WHERE pm.user_id = $1
+       ORDER BY pm.joined_at DESC`,
+      [request.user!.id],
+    );
+
+    response.json({
+      data: result.rows.map((row) => ({
+        id: row.id,
+        title: row.title,
+        summary: row.summary,
+        status: row.status,
+        technologies: row.technologies,
+        repositoryUrl: row.repository_url,
+        role: row.role_id ? { id: row.role_id, name: row.role_name } : null,
+        joinedAt: row.joined_at,
+        owner: {
+          username: row.owner_username,
+          displayName: row.owner_display_name,
+          avatarUrl: row.owner_avatar_url,
+        },
       })),
     });
   }),

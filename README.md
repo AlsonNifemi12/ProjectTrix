@@ -62,9 +62,11 @@ Native accounts use `POST /api/v1/auth/register` and `POST /api/v1/auth/login`. 
 | PATCH | `/api/v1/projects/:id` | Owner | Update project status or GitLab repository |
 | POST | `/api/v1/projects/:id/join-requests` | Yes | Request an open role |
 | GET | `/api/v1/projects/:id/join-requests` | Owner | Review the project's applications |
-| PATCH | `/api/v1/projects/:id/join-requests/:requestId` | Owner | Accept or reject an application |
+| PATCH | `/api/v1/projects/:id/join-requests/:requestId` | Owner | Move to interview, accept, or reject an application |
 | GET | `/api/v1/users/me` | Yes | Full current-user profile |
 | GET | `/api/v1/users/me/applications` | Yes | Track the current user's applications |
+| GET | `/api/v1/users/me/projects/applied` | Yes | Projects the user has applied to |
+| GET | `/api/v1/users/me/projects/collaborating` | Yes | Projects where the user is an accepted collaborator |
 | PATCH | `/api/v1/users/me` | Yes | Update bio or skills |
 | GET | `/api/v1/metadata/technologies` | No | Allowed technologies |
 
@@ -96,7 +98,9 @@ After deployment, Swagger is available at `https://YOUR-SERVICE.onrender.com/doc
 - Set `NODE_ENV=production`.
 - Use a long random `JWT_SECRET`.
 - Set the managed PostgreSQL `DATABASE_URL`.
-- Set `FRONTEND_URL`, `CORS_ORIGINS`, `API_URL`, and the exact GitLab callback URL.
+- Set `FRONTEND_URL` to one canonical site, for example `https://stackmate.vercel.app`.
+- Set `CORS_ORIGINS` to the comma-separated frontend origins that may call the API. Do not paste that list into `FRONTEND_URL`.
+- Set `API_URL` and the exact GitLab callback URL.
 - When the frontend and API are on different sites, set `COOKIE_SAME_SITE=none` and use HTTPS.
 - Run `npm run db:migrate` before starting the deployed API.
 
